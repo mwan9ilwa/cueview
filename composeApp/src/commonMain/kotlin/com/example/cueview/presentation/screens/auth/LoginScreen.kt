@@ -24,8 +24,9 @@ fun LoginScreen(
     val uiState by viewModel.uiState.collectAsState()
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var displayName by remember { mutableStateOf("") }
     
-    // Handle successful login
+    // Handle successful login/signup
     LaunchedEffect(uiState.currentUser) {
         if (uiState.currentUser != null) {
             onNavigateToDiscover()
@@ -49,12 +50,35 @@ fun LoginScreen(
         Spacer(modifier = Modifier.height(8.dp))
         
         Text(
-            text = "Track your favorite TV shows",
+            text = if (uiState.isSignUpMode) "Create Account" else "Welcome Back",
+            fontSize = 24.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        Text(
+            text = if (uiState.isSignUpMode) "Join CueView to track your shows" else "Track your favorite TV shows",
             fontSize = 16.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         
         Spacer(modifier = Modifier.height(48.dp))
+        
+        // Display Name field (only for sign up)
+        if (uiState.isSignUpMode) {
+            OutlinedTextField(
+                value = displayName,
+                onValueChange = { displayName = it },
+                label = { Text("Display Name") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+            
+            Spacer(modifier = Modifier.height(16.dp))
+        }
         
         OutlinedTextField(
             value = email,
@@ -89,12 +113,17 @@ fun LoginScreen(
         
         Button(
             onClick = {
-                viewModel.signIn(email, password)
+                if (uiState.isSignUpMode) {
+                    viewModel.signUp(email, password, displayName)
+                } else {
+                    viewModel.signIn(email, password)
+                }
             },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(50.dp),
-            enabled = !uiState.isLoading && email.isNotBlank() && password.isNotBlank()
+            enabled = !uiState.isLoading && email.isNotBlank() && password.isNotBlank() &&
+                    (!uiState.isSignUpMode || displayName.isNotBlank())
         ) {
             if (uiState.isLoading) {
                 CircularProgressIndicator(
@@ -102,7 +131,7 @@ fun LoginScreen(
                     color = MaterialTheme.colorScheme.onPrimary
                 )
             } else {
-                Text("Sign In")
+                Text(if (uiState.isSignUpMode) "Create Account" else "Sign In")
             }
         }
         
@@ -123,13 +152,17 @@ fun LoginScreen(
         Spacer(modifier = Modifier.height(24.dp))
         
         Row {
-            Text("Don't have an account? ")
+            Text(if (uiState.isSignUpMode) "Already have an account? " else "Don't have an account? ")
             TextButton(
                 onClick = {
-                    // TODO: Navigate to sign up screen
+                    viewModel.toggleSignUpMode()
+                    // Clear fields when switching modes
+                    email = ""
+                    password = ""
+                    displayName = ""
                 }
             ) {
-                Text("Sign Up")
+                Text(if (uiState.isSignUpMode) "Sign In" else "Sign Up")
             }
         }
     }

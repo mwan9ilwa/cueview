@@ -8,6 +8,7 @@ plugins {
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.kotlinx.serialization)
+    alias(libs.plugins.google.services) // Add Google Services plugin
     // Temporarily removing SQLDelight until we configure it properly
     // alias(libs.plugins.sqldelight)
 }
@@ -46,9 +47,11 @@ kotlin {
             // Navigation - Android only for now
             implementation(libs.androidx.navigation.compose)
             
-            // Firebase (Android-specific for now) - using deprecated platform for now
-            implementation(libs.firebase.auth)
-            implementation(libs.firebase.firestore)
+            // Firebase - Using BOM for version management
+            implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
+            implementation("com.google.firebase:firebase-auth-ktx")
+            implementation("com.google.firebase:firebase-firestore-ktx")
+            implementation("com.google.firebase:firebase-analytics-ktx")
             
             // Image Loading (Android-specific for now)
             implementation(libs.coil.compose)

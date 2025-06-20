@@ -2,36 +2,44 @@ package com.example.cueview.data.firebase
 
 import com.example.cueview.domain.model.UserProfile
 import com.example.cueview.domain.model.UserShow
+import com.example.cueview.domain.model.WatchStatus
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.UserProfileChangeRequest
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.tasks.await
 import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
 
 /**
- * Android Firebase implementation
- * TODO: Implement actual Firebase SDK integration
+ * Android Firebase implementation using real Firebase SDK
  */
 class FirebaseServiceImpl : FirebaseService {
     
-    private val _currentUser = MutableStateFlow<UserProfile?>(null)
-    private val _userShows = MutableStateFlow<List<UserShow>>(emptyList())
+    private val auth = FirebaseAuth.getInstance()
+    private val firestore = FirebaseFirestore.getInstance()
+    
+    companion object {
+        private const val COLLECTION_USERS = "users"
+        private const val COLLECTION_USER_SHOWS = "user_shows"
+    }
     
     override suspend fun signInWithEmail(email: String, password: String): Result<UserProfile> {
         return try {
-            // TODO: Implement Firebase Auth signInWithEmailAndPassword
-            if (email.isNotBlank() && password.isNotBlank()) {
-                val user = UserProfile(
-                    id = "android_user_${email.hashCode()}",
-                    email = email,
-                    displayName = email.substringBefore("@"),
-                    joinDate = Clock.System.todayIn(TimeZone.currentSystemDefault())
-                )
-                _currentUser.value = user
-                Result.success(user)
+            val authResult = auth.signInWithEmailAndPassword(email, password).await()
+            val firebaseUser = authResult.user
+            
+            if (firebaseUser != null) {
+                val userProfile = getUserProfileFromFirestore(firebaseUser.uid) 
+                    ?: createUserProfileFromFirebaseUser(firebaseUser)
+                Result.success(userProfile)
             } else {
-                Result.failure(Exception("Invalid credentials"))
+                Result.failure(Exception("Authentication failed"))
             }
         } catch (e: Exception) {
             Result.failure(e)
@@ -40,18 +48,31 @@ class FirebaseServiceImpl : FirebaseService {
 
     override suspend fun signUpWithEmail(email: String, password: String, displayName: String): Result<UserProfile> {
         return try {
-            // TODO: Implement Firebase Auth createUserWithEmailAndPassword
-            if (email.isNotBlank() && password.isNotBlank()) {
-                val user = UserProfile(
-                    id = "android_user_${email.hashCode()}",
+            val authResult = auth.createUserWithEmailAndPassword(email, password).await()
+            val firebaseUser = authResult.user
+            
+            if (firebaseUser != null) {
+                // Update display name
+                if (displayName.isNotBlank()) {
+                    val profileUpdates = UserProfileChangeRequest.Builder()
+                        .setDisplayName(displayName)
+                        .build()
+                    firebaseUser.updateProfile(profileUpdates).await()
+                }
+                
+                val userProfile = UserProfile(
+                    id = firebaseUser.uid,
                     email = email,
                     displayName = displayName.ifBlank { email.substringBefore("@") },
                     joinDate = Clock.System.todayIn(TimeZone.currentSystemDefault())
                 )
-                _currentUser.value = user
-                Result.success(user)
+                
+                // Save user profile to Firestore
+                saveUserProfileToFirestore(userProfile)
+                
+                Result.success(userProfile)
             } else {
-                Result.failure(Exception("Invalid input"))
+                Result.failure(Exception("User creation failed"))
             }
         } catch (e: Exception) {
             Result.failure(e)
@@ -60,7 +81,7 @@ class FirebaseServiceImpl : FirebaseService {
 
     override suspend fun signInWithGoogle(): Result<UserProfile> {
         return try {
-            // TODO: Implement Google Sign-In
+            // TODO: Implement Google Sign-In with Firebase
             Result.failure(Exception("Google Sign-In not implemented yet"))
         } catch (e: Exception) {
             Result.failure(e)
@@ -69,8 +90,7 @@ class FirebaseServiceImpl : FirebaseService {
 
     override suspend fun signOut(): Result<Unit> {
         return try {
-            // TODO: Implement Firebase Auth signOut
-            _currentUser.value = null
+            auth.signOut()
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -78,13 +98,29 @@ class FirebaseServiceImpl : FirebaseService {
     }
 
     override fun getCurrentUser(): Flow<UserProfile?> {
-        return _currentUser.asStateFlow()
+        return callbackFlow {
+            val authStateListener = FirebaseAuth.AuthStateListener { auth ->
+                val firebaseUser = auth.currentUser
+                trySend(
+                    if (firebaseUser != null) {
+                        createUserProfileFromFirebaseUser(firebaseUser)
+                    } else {
+                        null
+                    }
+                )
+            }
+            
+            auth.addAuthStateListener(authStateListener)
+            
+            awaitClose {
+                auth.removeAuthStateListener(authStateListener)
+            }
+        }
     }
 
     override suspend fun getUserProfile(userId: String): Result<UserProfile?> {
         return try {
-            // TODO: Implement Firestore getUserProfile
-            val profile = _currentUser.value
+            val profile = getUserProfileFromFirestore(userId)
             Result.success(profile)
         } catch (e: Exception) {
             Result.failure(e)
@@ -93,8 +129,7 @@ class FirebaseServiceImpl : FirebaseService {
 
     override suspend fun updateUserProfile(profile: UserProfile): Result<Unit> {
         return try {
-            // TODO: Implement Firestore updateUserProfile
-            _currentUser.value = profile
+            saveUserProfileToFirestore(profile)
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -102,17 +137,78 @@ class FirebaseServiceImpl : FirebaseService {
     }
 
     override fun getUserShows(userId: String): Flow<List<UserShow>> {
-        // TODO: Implement Firestore real-time listener
-        return _userShows.asStateFlow()
+        return callbackFlow {
+            val listenerRegistration = firestore.collection(COLLECTION_USER_SHOWS)
+                .whereEqualTo("userId", userId)
+                .addSnapshotListener { snapshot, error ->
+                    if (error != null) {
+                        close(error)
+                        return@addSnapshotListener
+                    }
+                    
+                    val shows = snapshot?.documents?.mapNotNull { doc ->
+                        try {
+                            val data = doc.data ?: return@mapNotNull null
+                            UserShow(
+                                id = doc.id,
+                                userId = data["userId"] as String,
+                                showId = (data["showId"] as Long).toInt(),
+                                showName = data["showName"] as String,
+                                posterPath = data["posterPath"] as? String,
+                                status = WatchStatus.valueOf(data["status"] as String),
+                                currentSeason = (data["currentSeason"] as? Long)?.toInt() ?: 1,
+                                currentEpisode = (data["currentEpisode"] as? Long)?.toInt() ?: 1,
+                                personalRating = data["personalRating"] as? Double,
+                                personalNotes = data["personalNotes"] as? String,
+                                dateAdded = kotlinx.datetime.LocalDate.fromEpochDays(
+                                    ((data["dateAdded"] as Long) / (24 * 60 * 60 * 1000)).toInt()
+                                ),
+                                lastWatched = (data["lastWatched"] as? Long)?.let { 
+                                    kotlinx.datetime.LocalDate.fromEpochDays((it / (24 * 60 * 60 * 1000)).toInt())
+                                },
+                                watchedEpisodes = emptyList() // TODO: Implement watched episodes parsing
+                            )
+                        } catch (e: Exception) {
+                            null // Skip invalid documents
+                        }
+                    } ?: emptyList()
+                    
+                    trySend(shows)
+                }
+            
+            awaitClose {
+                listenerRegistration.remove()
+            }
+        }
     }
 
     override suspend fun addShowToLibrary(userShow: UserShow): Result<Unit> {
         return try {
-            // TODO: Implement Firestore addShowToLibrary
-            val currentShows = _userShows.value.toMutableList()
-            currentShows.removeAll { it.showId == userShow.showId && it.userId == userShow.userId }
-            currentShows.add(userShow)
-            _userShows.value = currentShows
+            val data = mapOf(
+                "userId" to userShow.userId,
+                "showId" to userShow.showId,
+                "showName" to userShow.showName,
+                "posterPath" to userShow.posterPath,
+                "status" to userShow.status.name,
+                "currentSeason" to userShow.currentSeason,
+                "currentEpisode" to userShow.currentEpisode,
+                "personalRating" to userShow.personalRating,
+                "personalNotes" to userShow.personalNotes,
+                "dateAdded" to userShow.dateAdded.toEpochDays() * 24 * 60 * 60 * 1000L,
+                "lastWatched" to userShow.lastWatched?.toEpochDays()?.let { it * 24 * 60 * 60 * 1000L }
+            )
+            
+            if (userShow.id.isNotBlank()) {
+                firestore.collection(COLLECTION_USER_SHOWS)
+                    .document(userShow.id)
+                    .set(data)
+                    .await()
+            } else {
+                firestore.collection(COLLECTION_USER_SHOWS)
+                    .add(data)
+                    .await()
+            }
+            
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -121,13 +217,25 @@ class FirebaseServiceImpl : FirebaseService {
 
     override suspend fun updateShowInLibrary(userShow: UserShow): Result<Unit> {
         return try {
-            // TODO: Implement Firestore updateShowInLibrary
-            val currentShows = _userShows.value.toMutableList()
-            val index = currentShows.indexOfFirst { it.id == userShow.id }
-            if (index != -1) {
-                currentShows[index] = userShow
-                _userShows.value = currentShows
-            }
+            val data = mapOf(
+                "userId" to userShow.userId,
+                "showId" to userShow.showId,
+                "showName" to userShow.showName,
+                "posterPath" to userShow.posterPath,
+                "status" to userShow.status.name,
+                "currentSeason" to userShow.currentSeason,
+                "currentEpisode" to userShow.currentEpisode,
+                "personalRating" to userShow.personalRating,
+                "personalNotes" to userShow.personalNotes,
+                "dateAdded" to userShow.dateAdded.toEpochDays() * 24 * 60 * 60 * 1000L,
+                "lastWatched" to userShow.lastWatched?.toEpochDays()?.let { it * 24 * 60 * 60 * 1000L }
+            )
+            
+            firestore.collection(COLLECTION_USER_SHOWS)
+                .document(userShow.id)
+                .update(data)
+                .await()
+            
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -136,13 +244,70 @@ class FirebaseServiceImpl : FirebaseService {
 
     override suspend fun removeShowFromLibrary(userId: String, showId: Int): Result<Unit> {
         return try {
-            // TODO: Implement Firestore removeShowFromLibrary
-            val currentShows = _userShows.value.toMutableList()
-            currentShows.removeAll { it.showId == showId && it.userId == userId }
-            _userShows.value = currentShows
+            val query = firestore.collection(COLLECTION_USER_SHOWS)
+                .whereEqualTo("userId", userId)
+                .whereEqualTo("showId", showId)
+                .get()
+                .await()
+            
+            for (document in query.documents) {
+                document.reference.delete().await()
+            }
+            
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+    
+    // Helper functions
+    private suspend fun getUserProfileFromFirestore(userId: String): UserProfile? {
+        return try {
+            val document = firestore.collection(COLLECTION_USERS)
+                .document(userId)
+                .get()
+                .await()
+            
+            if (document.exists()) {
+                val data = document.data!!
+                UserProfile(
+                    id = userId,
+                    email = data["email"] as String,
+                    displayName = data["displayName"] as String,
+                    joinDate = Instant.fromEpochMilliseconds(data["joinDate"] as Long)
+                        .let { instant ->
+                            kotlinx.datetime.LocalDate.fromEpochDays(
+                                (instant.toEpochMilliseconds() / (24 * 60 * 60 * 1000)).toInt()
+                            )
+                        }
+                )
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+    
+    private suspend fun saveUserProfileToFirestore(profile: UserProfile) {
+        val data = mapOf(
+            "email" to profile.email,
+            "displayName" to profile.displayName,
+            "joinDate" to profile.joinDate.toEpochDays() * 24 * 60 * 60 * 1000L // Convert to milliseconds
+        )
+        
+        firestore.collection(COLLECTION_USERS)
+            .document(profile.id)
+            .set(data)
+            .await()
+    }
+    
+    private fun createUserProfileFromFirebaseUser(firebaseUser: com.google.firebase.auth.FirebaseUser): UserProfile {
+        return UserProfile(
+            id = firebaseUser.uid,
+            email = firebaseUser.email ?: "",
+            displayName = firebaseUser.displayName ?: firebaseUser.email?.substringBefore("@") ?: "",
+            joinDate = Clock.System.todayIn(TimeZone.currentSystemDefault())
+        )
     }
 }
