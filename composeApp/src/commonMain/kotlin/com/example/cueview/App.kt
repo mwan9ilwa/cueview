@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.sp
 import com.example.cueview.presentation.screens.auth.LoginScreen
 import com.example.cueview.presentation.screens.discover.SimpleEnhancedDiscoverScreen
 import com.example.cueview.presentation.screens.library.SimpleEnhancedLibraryScreen
+import com.example.cueview.presentation.screens.detail.ShowDetailScreen
 import com.example.cueview.presentation.screens.profile.ProfileScreen
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.KoinApplication
@@ -30,10 +31,11 @@ fun App() {
     }) {
         MaterialTheme {
             var currentScreen by remember { mutableStateOf(AppScreen.Login) }
+            var selectedShowId by remember { mutableStateOf<Int?>(null) }
             
             Scaffold(
                 bottomBar = {
-                    if (currentScreen != AppScreen.Login) {
+                    if (currentScreen != AppScreen.Login && selectedShowId == null) {
                         NavigationBar {
                             AppScreen.bottomNavScreens.forEach { screen ->
                                 NavigationBarItem(
@@ -41,47 +43,58 @@ fun App() {
                                     label = { Text(screen.title) },
                                     selected = currentScreen == screen,
                                     onClick = { currentScreen = screen }
+                                )
+                            }
+                        }
+                    }
+                }
+            ) { paddingValues ->
+                Box(modifier = Modifier.padding(paddingValues)) {
+                    when {
+                        selectedShowId != null -> {
+                            ShowDetailScreen(
+                                showId = selectedShowId!!,
+                                onNavigateBack = { selectedShowId = null },
+                                onAddToLibrary = { /* TODO: Add to library from detail */ }
+                            )
+                        }
+                        
+                        currentScreen == AppScreen.Login -> {
+                            LoginScreen(
+                                onNavigateToDiscover = {
+                                    currentScreen = AppScreen.Discover
+                                }
+                            )
+                        }
+                        
+                        currentScreen == AppScreen.Discover -> {
+                            SimpleEnhancedDiscoverScreen(
+                                onNavigateToShowDetails = { showId ->
+                                    selectedShowId = showId
+                                }
+                            )
+                        }
+                        
+                        currentScreen == AppScreen.Library -> {
+                            SimpleEnhancedLibraryScreen(
+                                onNavigateToShowDetails = { showId ->
+                                    selectedShowId = showId
+                                }
+                            )
+                        }
+                        
+                        currentScreen == AppScreen.Profile -> {
+                            ProfileScreen(
+                                onNavigateToLogin = {
+                                    currentScreen = AppScreen.Login
+                                }
                             )
                         }
                     }
                 }
             }
-        ) { paddingValues ->
-            Box(modifier = Modifier.padding(paddingValues)) {
-                when (currentScreen) {
-                    AppScreen.Login -> {
-                        LoginScreen(
-                            onNavigateToDiscover = {
-                                currentScreen = AppScreen.Discover
-                            }
-                        )
-                    }
-                    AppScreen.Discover -> {
-                        SimpleEnhancedDiscoverScreen(
-                            onNavigateToShowDetails = { showId ->
-                                // TODO: Navigate to show details
-                            }
-                        )
-                    }
-                    AppScreen.Library -> {
-                        SimpleEnhancedLibraryScreen(
-                            onNavigateToShowDetails = { showId ->
-                                // TODO: Navigate to show details
-                            }
-                        )
-                    }
-                    AppScreen.Profile -> {
-                        ProfileScreen(
-                            onNavigateToLogin = {
-                                currentScreen = AppScreen.Login
-                            }
-                        )
-                    }
-                }
-            }
         }
     }
-}
 }
 
 enum class AppScreen(

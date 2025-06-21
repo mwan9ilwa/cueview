@@ -3,6 +3,7 @@ package com.example.cueview.presentation.screens.discover
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Search
@@ -10,10 +11,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.cueview.domain.model.TvShow
 import com.example.cueview.presentation.viewmodel.DiscoverViewModel
+import com.example.cueview.presentation.ui.components.NetworkImage
 import org.koin.compose.koinInject
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -24,6 +28,22 @@ fun SimpleEnhancedDiscoverScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var searchQuery by remember { mutableStateOf("") }
+    val snackbarHostState = remember { SnackbarHostState() }
+    
+    // Handle success/error messages
+    LaunchedEffect(uiState.addToLibraryMessage) {
+        uiState.addToLibraryMessage?.let { message ->
+            snackbarHostState.showSnackbar(message)
+            viewModel.clearAddToLibraryMessage()
+        }
+    }
+    
+    LaunchedEffect(uiState.errorMessage) {
+        uiState.errorMessage?.let { message ->
+            snackbarHostState.showSnackbar(message)
+            viewModel.clearError()
+        }
+    }
     
     Scaffold(
         topBar = {
@@ -35,7 +55,8 @@ fun SimpleEnhancedDiscoverScreen(
                     ) 
                 }
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -104,7 +125,7 @@ fun SimpleEnhancedDiscoverScreen(
                             ShowCard(
                                 show = show,
                                 onShowClick = { onNavigateToShowDetails(show.id.toInt()) },
-                                onAddToLibrary = { /* TODO: Add to library */ }
+                                onAddToLibrary = { viewModel.addToLibrary(show) }
                             )
                         }
                     }
@@ -126,7 +147,7 @@ fun SimpleEnhancedDiscoverScreen(
                             ShowCard(
                                 show = show,
                                 onShowClick = { onNavigateToShowDetails(show.id.toInt()) },
-                                onAddToLibrary = { /* TODO: Add to library */ }
+                                onAddToLibrary = { viewModel.addToLibrary(show) }
                             )
                         }
                     }
@@ -148,8 +169,20 @@ private fun ShowCard(
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.Top
         ) {
+            // Poster Image
+            NetworkImage(
+                url = "https://image.tmdb.org/t/p/w200${show.posterPath}",
+                contentDescription = "${show.name} poster",
+                modifier = Modifier
+                    .size(80.dp, 120.dp)
+                    .clip(RoundedCornerShape(8.dp)),
+                contentScale = ContentScale.Crop
+            )
+            
+            Spacer(modifier = Modifier.width(16.dp))
+            
             Column(
                 modifier = Modifier.weight(1f)
             ) {
@@ -165,11 +198,11 @@ private fun ShowCard(
                         text = show.overview,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2
+                        maxLines = 3
                     )
                 }
                 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
