@@ -36,14 +36,20 @@ fun ShowDetailScreen(
         viewModel.loadShowDetails(showId)
     }
 
-    // Handle error messages
+    // Handle error messages with retry option
     LaunchedEffect(uiState.errorMessage) {
         uiState.errorMessage?.let { message ->
-            snackbarHostState.showSnackbar(
+            val result = snackbarHostState.showSnackbar(
                 message = message,
-                actionLabel = "Dismiss"
+                actionLabel = if (uiState.canRetry) "Retry" else "Dismiss",
+                duration = SnackbarDuration.Long
             )
-            viewModel.clearError()
+            
+            if (result == SnackbarResult.ActionPerformed && uiState.canRetry) {
+                viewModel.retry()
+            } else {
+                viewModel.clearError()
+            }
         }
     }
 

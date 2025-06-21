@@ -19,7 +19,9 @@ data class ShowDetailUiState(
     val show: TvShow? = null,
     val errorMessage: String? = null,
     val addToLibraryMessage: String? = null,
-    val isAddingToLibrary: Boolean = false
+    val isAddingToLibrary: Boolean = false,
+    val canRetry: Boolean = false,
+    val retryAction: (() -> Unit)? = null
 )
 
 class ShowDetailViewModel(
@@ -31,14 +33,16 @@ class ShowDetailViewModel(
     private val _uiState = MutableStateFlow(ShowDetailUiState())
     val uiState: StateFlow<ShowDetailUiState> = _uiState.asStateFlow()
 
-    fun loadShowDetails(showId: Int) {
+    fun loadShowDetails(showId: Int, retryCount: Int = 0) {
         viewModelScope.launch {
             // Clear previous show data and set loading state
             _uiState.value = _uiState.value.copy(
                 isLoading = true, 
                 show = null, 
                 errorMessage = null,
-                addToLibraryMessage = null
+                addToLibraryMessage = null,
+                canRetry = false,
+                retryAction = null
             )
             
             getShowDetailsUseCase(showId).fold(
@@ -49,18 +53,28 @@ class ShowDetailViewModel(
                     )
                 },
                 onFailure = { error ->
+                    val canRetry = retryCount < 3
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
-                        errorMessage = error.message ?: "Failed to load show details"
+                        errorMessage = getErrorMessage(error, retryCount),
+                        canRetry = canRetry,
+                        retryAction = if (canRetry) {
+                            { loadShowDetails(showId, retryCount + 1) }
+                        } else null
                     )
                 }
             )
         }
     }
 
-    fun addToLibrary(show: TvShow) {
+    fun addToLibrary(show: TvShow, retryCount: Int = 0) {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isAddingToLibrary = true)
+            _uiState.value = _uiState.value.copy(
+                isAddingToLibrary = true,
+                errorMessage = null,
+                canRetry = false,
+                retryAction = null
+            )
             
             getCurrentUserUseCase().first { it != null }?.let { currentUser ->
                 val userShow = UserShow(
@@ -87,9 +101,14 @@ class ShowDetailViewModel(
                         )
                     },
                     onFailure = { error ->
+                        val canRetry = retryCount < 3
                         _uiState.value = _uiState.value.copy(
                             isAddingToLibrary = false,
-                            errorMessage = "Failed to add show to library: ${error.message}"
+                            errorMessage = getErrorMessage(error, retryCount, "Failed to add show to library"),
+                            canRetry = canRetry,
+                            retryAction = if (canRetry) {
+                                { addToLibrary(show, retryCount + 1) }
+                            } else null
                         )
                     }
                 )
@@ -102,8 +121,34 @@ class ShowDetailViewModel(
         }
     }
 
+    fun retry() {
+        _uiState.value.retryAction?.invoke()
+    }
+
     fun clearError() {
-        _uiState.value = _uiState.value.copy(errorMessage = null)
+        _uiState.value = _uiState.value.copy(
+            errorMessage = null,
+            addToLibraryMessage = null,
+            canRetry = false,
+            retryAction = null
+        )
+    }
+    
+    private fun getErrorMessage(error: Throwable, retryCount: Int, prefix: String = "Failed to load show details"): String {
+        return when {
+            error.message?.contains("network", ignoreCase = true) == true -> {
+                if (retryCount < 3) "$prefix. Check your internet connection. (Attempt ${retryCount + 1}/3)"
+                else "$prefix. Please check your internet connection and try again."
+            }
+            error.message?.contains("timeout", ignoreCase = true) == true -> {
+                if (retryCount < 3) "$prefix. Request timed out. (Attempt ${retryCount + 1}/3)"
+                else "$prefix. The request timed out. Please try again later."
+            }
+            else -> {
+                if (retryCount < 3) "$prefix: ${error.message ?: "Unknown error"} (Attempt ${retryCount + 1}/3)"
+                else "$prefix: ${error.message ?: "Unknown error"}"
+            }
+        }
     }
 
     fun clearAddToLibraryMessage() {

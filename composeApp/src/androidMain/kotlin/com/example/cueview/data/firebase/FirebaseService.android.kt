@@ -1,8 +1,6 @@
 package com.example.cueview.data.firebase
 
-import com.example.cueview.domain.model.UserProfile
-import com.example.cueview.domain.model.UserShow
-import com.example.cueview.domain.model.WatchStatus
+import com.example.cueview.domain.model.*
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.UserProfileChangeRequest
 import com.google.firebase.firestore.FirebaseFirestore
@@ -252,6 +250,145 @@ class FirebaseServiceImpl : FirebaseService {
             
             for (document in query.documents) {
                 document.reference.delete().await()
+            }
+            
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
+    override suspend fun updateShowProgress(userId: String, showId: Int, season: Int, episode: Int): Result<Unit> {
+        return try {
+            val query = firestore.collection(COLLECTION_USER_SHOWS)
+                .whereEqualTo("userId", userId)
+                .whereEqualTo("showId", showId)
+                .get()
+                .await()
+                
+            for (document in query.documents) {
+                document.reference.update(
+                    mapOf(
+                        "currentSeason" to season,
+                        "currentEpisode" to episode,
+                        "lastWatched" to Clock.System.todayIn(TimeZone.currentSystemDefault()).toEpochDays() * 24 * 60 * 60 * 1000L
+                    )
+                ).await()
+            }
+            
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
+    override suspend fun updateShowStatus(userId: String, showId: Int, status: WatchStatus): Result<Unit> {
+        return try {
+            val query = firestore.collection(COLLECTION_USER_SHOWS)
+                .whereEqualTo("userId", userId)
+                .whereEqualTo("showId", showId)
+                .get()
+                .await()
+                
+            for (document in query.documents) {
+                document.reference.update("status", status.name).await()
+            }
+            
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
+    override suspend fun addWatchedEpisode(userId: String, showId: Int, episode: WatchedEpisode): Result<Unit> {
+        return try {
+            val query = firestore.collection(COLLECTION_USER_SHOWS)
+                .whereEqualTo("userId", userId)
+                .whereEqualTo("showId", showId)
+                .get()
+                .await()
+                
+            for (document in query.documents) {
+                // Get current watched episodes
+                val currentData = document.data
+                val currentWatchedEpisodes = currentData?.get("watchedEpisodes") as? List<Map<String, Any>> ?: emptyList()
+                
+                // Add new episode to the list
+                val episodeData = mapOf(
+                    "seasonNumber" to episode.seasonNumber,
+                    "episodeNumber" to episode.episodeNumber,
+                    "watchedDate" to episode.watchedDate
+                )
+                
+                val updatedWatchedEpisodes = currentWatchedEpisodes + episodeData
+                
+                document.reference.update(
+                    mapOf(
+                        "watchedEpisodes" to updatedWatchedEpisodes,
+                        "lastWatched" to Clock.System.todayIn(TimeZone.currentSystemDefault()).toEpochDays() * 24 * 60 * 60 * 1000L
+                    )
+                ).await()
+            }
+            
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
+    override suspend fun rateShow(userId: String, showId: Int, rating: Double): Result<Unit> {
+        return try {
+            val query = firestore.collection(COLLECTION_USER_SHOWS)
+                .whereEqualTo("userId", userId)
+                .whereEqualTo("showId", showId)
+                .get()
+                .await()
+                
+            for (document in query.documents) {
+                document.reference.update("personalRating", rating).await()
+            }
+            
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
+    override suspend fun addShowNotes(userId: String, showId: Int, notes: String): Result<Unit> {
+        return try {
+            val query = firestore.collection(COLLECTION_USER_SHOWS)
+                .whereEqualTo("userId", userId)
+                .whereEqualTo("showId", showId)
+                .get()
+                .await()
+                
+            for (document in query.documents) {
+                document.reference.update("personalNotes", notes).await()
+            }
+            
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
+    override suspend fun markSeasonCompleted(userId: String, showId: Int, season: Int): Result<Unit> {
+        return try {
+            val query = firestore.collection(COLLECTION_USER_SHOWS)
+                .whereEqualTo("userId", userId)
+                .whereEqualTo("showId", showId)
+                .get()
+                .await()
+                
+            for (document in query.documents) {
+                // Mark all episodes in the season as watched (simplified - just update progress)
+                document.reference.update(
+                    mapOf(
+                        "currentSeason" to (season + 1),
+                        "currentEpisode" to 1,
+                        "lastWatched" to Clock.System.todayIn(TimeZone.currentSystemDefault()).toEpochDays() * 24 * 60 * 60 * 1000L
+                    )
+                ).await()
             }
             
             Result.success(Unit)

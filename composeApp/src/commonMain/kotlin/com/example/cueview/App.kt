@@ -77,7 +77,7 @@ fun App() {
                         
                         currentScreen == AppScreen.Library -> {
                             EnhancedLibraryScreenWithEpisodes(
-                                onNavigateToShowDetails = { showId ->
+                                onNavigateToShowDetails = { showId: Int ->
                                     selectedShowId = showId
                                 }
                             )

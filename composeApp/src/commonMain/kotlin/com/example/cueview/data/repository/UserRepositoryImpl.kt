@@ -4,6 +4,9 @@ import com.example.cueview.data.firebase.FirebaseService
 import com.example.cueview.domain.model.*
 import com.example.cueview.domain.repository.UserRepository
 import kotlinx.coroutines.flow.Flow
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.todayIn
 
 /**
  * User Repository Implementation for Firestore operations
@@ -33,50 +36,40 @@ class UserRepositoryImpl(
     }
 
     override suspend fun updateShowProgress(userId: String, showId: Int, season: Int, episode: Int): Result<Unit> {
-        // For now, we'll implement this as an update to the show in library
-        // TODO: This should be a more specific Firestore update
         return try {
-            Result.success(Unit)
+            firebaseService.updateShowProgress(userId, showId, season, episode)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
     override suspend fun updateShowStatus(userId: String, showId: Int, status: WatchStatus): Result<Unit> {
-        // For now, we'll implement this as an update to the show in library
-        // TODO: This should be a more specific Firestore update
         return try {
-            Result.success(Unit)
+            firebaseService.updateShowStatus(userId, showId, status)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
     override suspend fun addWatchedEpisode(userId: String, showId: Int, episode: WatchedEpisode): Result<Unit> {
-        // For now, we'll implement this as an update to the show in library
-        // TODO: This should be a more specific Firestore update
         return try {
-            Result.success(Unit)
+            firebaseService.addWatchedEpisode(userId, showId, episode)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
     override suspend fun rateShow(userId: String, showId: Int, rating: Double): Result<Unit> {
-        // For now, we'll implement this as an update to the show in library
-        // TODO: This should be a more specific Firestore update
         return try {
-            Result.success(Unit)
+            firebaseService.rateShow(userId, showId, rating)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
     override suspend fun addShowNotes(userId: String, showId: Int, notes: String): Result<Unit> {
-        // For now, we'll implement this as an update to the show in library
-        // TODO: This should be a more specific Firestore update
         return try {
-            Result.success(Unit)
+            firebaseService.addShowNotes(userId, showId, notes)
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -84,9 +77,21 @@ class UserRepositoryImpl(
 
     override suspend fun markEpisodeWatched(userId: String, showId: Int, season: Int, episode: Int): Result<Unit> {
         return try {
-            // Mark the episode as watched and update current progress
-            // TODO: This should update the UserShow's watchedEpisodes list and currentSeason/currentEpisode
-            Result.success(Unit)
+            // Create a WatchedEpisode object and add it to the show
+            val watchedEpisode = WatchedEpisode(
+                seasonNumber = season,
+                episodeNumber = episode,
+                watchedDate = Clock.System.todayIn(TimeZone.currentSystemDefault())
+            )
+            
+            // Add the episode to watched list and update current progress
+            firebaseService.addWatchedEpisode(userId, showId, watchedEpisode).fold(
+                onSuccess = {
+                    // Update current progress to next episode
+                    firebaseService.updateShowProgress(userId, showId, season, episode + 1)
+                },
+                onFailure = { error -> Result.failure(error) }
+            )
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -94,9 +99,14 @@ class UserRepositoryImpl(
 
     override suspend fun markSeasonCompleted(userId: String, showId: Int, season: Int): Result<Unit> {
         return try {
-            // Mark entire season as completed and move to next season
-            // TODO: This should update the UserShow's watchedEpisodes list and currentSeason
-            Result.success(Unit)
+            // Mark the season as completed and move to next season
+            firebaseService.markSeasonCompleted(userId, showId, season).fold(
+                onSuccess = {
+                    // Update progress to next season, episode 1
+                    firebaseService.updateShowProgress(userId, showId, season + 1, 1)
+                },
+                onFailure = { error -> Result.failure(error) }
+            )
         } catch (e: Exception) {
             Result.failure(e)
         }
