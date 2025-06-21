@@ -14,6 +14,7 @@ import com.example.cueview.domain.usecase.*
 import com.example.cueview.presentation.viewmodel.AuthViewModel
 import com.example.cueview.presentation.viewmodel.DiscoverViewModel
 import com.example.cueview.presentation.viewmodel.LibraryViewModel
+import com.example.cueview.presentation.viewmodel.ShowDetailViewModel
 // import com.example.cueview.presentation.viewmodel.EnhancedDiscoverViewModel
 // import com.example.cueview.presentation.viewmodel.EnhancedLibraryViewModel
 import io.ktor.client.*
@@ -89,6 +90,7 @@ val viewModelModule = module {
     factory { DiscoverViewModel(get(), get(), get(), get(), get()) }
     factory { AuthViewModel(get(), get(), get(), get()) }
     factory { LibraryViewModel(get(), get()) }
+    factory { ShowDetailViewModel(get(), get(), get()) }
     
     // Enhanced ViewModels (temporarily disabled)
     // factory { EnhancedDiscoverViewModel(...) }

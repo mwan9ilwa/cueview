@@ -40,6 +40,8 @@ interface UserRepository {
     suspend fun addWatchedEpisode(userId: String, showId: Int, episode: WatchedEpisode): Result<Unit>
     suspend fun rateShow(userId: String, showId: Int, rating: Double): Result<Unit>
     suspend fun addShowNotes(userId: String, showId: Int, notes: String): Result<Unit>
+    suspend fun markEpisodeWatched(userId: String, showId: Int, season: Int, episode: Int): Result<Unit>
+    suspend fun markSeasonCompleted(userId: String, showId: Int, season: Int): Result<Unit>
 }
 
 interface AuthRepository {

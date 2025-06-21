@@ -81,4 +81,24 @@ class UserRepositoryImpl(
             Result.failure(e)
         }
     }
+
+    override suspend fun markEpisodeWatched(userId: String, showId: Int, season: Int, episode: Int): Result<Unit> {
+        return try {
+            // Mark the episode as watched and update current progress
+            // TODO: This should update the UserShow's watchedEpisodes list and currentSeason/currentEpisode
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun markSeasonCompleted(userId: String, showId: Int, season: Int): Result<Unit> {
+        return try {
+            // Mark entire season as completed and move to next season
+            // TODO: This should update the UserShow's watchedEpisodes list and currentSeason
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

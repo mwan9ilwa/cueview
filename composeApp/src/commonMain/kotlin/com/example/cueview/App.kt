@@ -15,7 +15,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.cueview.presentation.screens.auth.LoginScreen
 import com.example.cueview.presentation.screens.discover.SimpleEnhancedDiscoverScreen
-import com.example.cueview.presentation.screens.library.SimpleEnhancedLibraryScreen
+import com.example.cueview.presentation.screens.library.EnhancedLibraryScreenWithEpisodes
 import com.example.cueview.presentation.screens.detail.ShowDetailScreen
 import com.example.cueview.presentation.screens.profile.ProfileScreen
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -55,7 +55,7 @@ fun App() {
                             ShowDetailScreen(
                                 showId = selectedShowId!!,
                                 onNavigateBack = { selectedShowId = null },
-                                onAddToLibrary = { /* TODO: Add to library from detail */ }
+                                onAddToLibrary = { /* Handled by ViewModel */ }
                             )
                         }
                         
@@ -76,7 +76,7 @@ fun App() {
                         }
                         
                         currentScreen == AppScreen.Library -> {
-                            SimpleEnhancedLibraryScreen(
+                            EnhancedLibraryScreenWithEpisodes(
                                 onNavigateToShowDetails = { showId ->
                                     selectedShowId = showId
                                 }

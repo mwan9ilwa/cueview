@@ -73,4 +73,28 @@ class LibraryViewModel(
             }
         }
     }
+
+    fun markEpisodeWatched(show: UserShow, season: Int, episode: Int) {
+        viewModelScope.launch {
+            _currentUser.value?.let { user ->
+                userRepository.markEpisodeWatched(user.id, show.showId, season, episode)
+            }
+        }
+    }
+
+    fun markSeasonCompleted(show: UserShow, season: Int) {
+        viewModelScope.launch {
+            _currentUser.value?.let { user ->
+                userRepository.markSeasonCompleted(user.id, show.showId, season)
+            }
+        }
+    }
+
+    fun updateShowProgress(show: UserShow, currentSeason: Int, currentEpisode: Int) {
+        viewModelScope.launch {
+            _currentUser.value?.let { user ->
+                userRepository.updateShowProgress(user.id, show.showId, currentSeason, currentEpisode)
+            }
+        }
+    }
 }
