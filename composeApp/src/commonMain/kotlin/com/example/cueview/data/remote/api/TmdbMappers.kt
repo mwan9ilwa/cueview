@@ -83,6 +83,35 @@ fun TmdbCreator.toDomainModel(): Creator {
     )
 }
 
+fun TmdbImages.toDomainModel(): ShowImages {
+    return ShowImages(
+        backdrops = backdrops.map { it.toDomainModel() },
+        posters = posters.map { it.toDomainModel() }
+    )
+}
+
+fun TmdbImageData.toDomainModel(): ImageData {
+    return ImageData(
+        filePath = filePath,
+        width = width,
+        height = height,
+        aspectRatio = aspectRatio,
+        voteAverage = voteAverage,
+        voteCount = voteCount
+    )
+}
+
+fun TmdbVideo.toDomainModel(): Video {
+    return Video(
+        id = id,
+        key = key,
+        name = name,
+        site = site,
+        type = type,
+        official = official
+    )
+}
+
 /**
  * Helper function to safely parse date strings from TMDb API
  * TMDb uses YYYY-MM-DD format

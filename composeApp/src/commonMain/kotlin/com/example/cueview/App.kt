@@ -14,8 +14,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.cueview.presentation.screens.auth.LoginScreen
-import com.example.cueview.presentation.screens.discover.DiscoverScreen
-import com.example.cueview.presentation.screens.library.LibraryScreen
+import com.example.cueview.presentation.screens.discover.SimpleEnhancedDiscoverScreen
+import com.example.cueview.presentation.screens.library.SimpleEnhancedLibraryScreen
 import com.example.cueview.presentation.screens.profile.ProfileScreen
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.KoinApplication
@@ -57,14 +57,14 @@ fun App() {
                         )
                     }
                     AppScreen.Discover -> {
-                        DiscoverScreen(
+                        SimpleEnhancedDiscoverScreen(
                             onNavigateToShowDetails = { showId ->
                                 // TODO: Navigate to show details
                             }
                         )
                     }
                     AppScreen.Library -> {
-                        LibraryScreen(
+                        SimpleEnhancedLibraryScreen(
                             onNavigateToShowDetails = { showId ->
                                 // TODO: Navigate to show details
                             }

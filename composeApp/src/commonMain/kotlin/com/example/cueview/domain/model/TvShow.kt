@@ -72,3 +72,29 @@ data class Creator(
     val name: String,
     val profilePath: String?
 )
+
+@Serializable
+data class ShowImages(
+    val backdrops: List<ImageData>,
+    val posters: List<ImageData>
+)
+
+@Serializable
+data class ImageData(
+    val filePath: String,
+    val width: Int,
+    val height: Int,
+    val aspectRatio: Double,
+    val voteAverage: Double,
+    val voteCount: Int
+)
+
+@Serializable
+data class Video(
+    val id: String,
+    val key: String,
+    val name: String,
+    val site: String,
+    val type: String,
+    val official: Boolean
+)

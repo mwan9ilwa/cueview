@@ -13,10 +13,17 @@ interface TvShowRepository {
     suspend fun getShowSeason(showId: Int, seasonNumber: Int): Result<Season>
     suspend fun getShowEpisode(showId: Int, seasonNumber: Int, episodeNumber: Int): Result<Episode>
     suspend fun getGenres(): Result<List<Genre>>
+    suspend fun getShowsByGenre(genreId: Int, page: Int = 1): Result<List<TvShow>>
+    suspend fun getSimilarShows(showId: Int): Result<List<TvShow>>
+    suspend fun getRecommendations(showId: Int): Result<List<TvShow>>
+    suspend fun getShowImages(showId: Int): Result<ShowImages>
+    suspend fun getShowVideos(showId: Int): Result<List<Video>>
     
     // Local cached data
     suspend fun getCachedShow(showId: Int): TvShow?
     suspend fun cacheShow(show: TvShow)
+    suspend fun getCachedGenres(): List<Genre>
+    suspend fun cacheGenres(genres: List<Genre>)
 }
 
 interface UserRepository {

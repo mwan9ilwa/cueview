@@ -64,6 +64,39 @@ class TmdbApiService(
         return response["genres"] ?: emptyList()
     }
     
+    suspend fun getTvShowsByGenre(genreId: Int, page: Int = 1): TmdbResponse<TmdbTvShow> {
+        return httpClient.get("$baseUrl/discover/tv") {
+            parameter("api_key", apiKey)
+            parameter("with_genres", genreId)
+            parameter("page", page)
+            parameter("sort_by", "popularity.desc")
+        }.body()
+    }
+    
+    suspend fun getSimilarTvShows(tvId: Int): TmdbResponse<TmdbTvShow> {
+        return httpClient.get("$baseUrl/tv/$tvId/similar") {
+            parameter("api_key", apiKey)
+        }.body()
+    }
+    
+    suspend fun getTvShowRecommendations(tvId: Int): TmdbResponse<TmdbTvShow> {
+        return httpClient.get("$baseUrl/tv/$tvId/recommendations") {
+            parameter("api_key", apiKey)
+        }.body()
+    }
+    
+    suspend fun getTvShowImages(tvId: Int): TmdbImages {
+        return httpClient.get("$baseUrl/tv/$tvId/images") {
+            parameter("api_key", apiKey)
+        }.body()
+    }
+    
+    suspend fun getTvShowVideos(tvId: Int): TmdbVideosResponse {
+        return httpClient.get("$baseUrl/tv/$tvId/videos") {
+            parameter("api_key", apiKey)
+        }.body()
+    }
+    
     companion object {
         const val IMAGE_BASE_URL = "https://image.tmdb.org/t/p/"
         const val POSTER_SIZE_W500 = "w500"

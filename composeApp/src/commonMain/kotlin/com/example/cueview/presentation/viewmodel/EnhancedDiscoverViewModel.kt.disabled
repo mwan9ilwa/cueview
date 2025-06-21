@@ -1,0 +1,342 @@
+package com.example.cueview.presentation.viewmodel
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.cueview.domain.model.*
+import com.example.cueview.domain.usecase.*
+import com.example.cueview.presentation.ui.common.ContentFilter
+import com.example.cueview.presentation.ui.common.SortOption
+import com.example.cueview.presentation.ui.common.AdvancedFilter
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.todayIn
+
+data class ViewModelPersonalizedContent(
+    val forYou: List<TvShow> = emptyList(),
+    val trending: List<TvShow> = emptyList(),
+    val newReleases: List<TvShow> = emptyList(),
+    val watchlistSuggestions: List<TvShow> = emptyList(),
+    val byGenre: Map<Genre, List<TvShow>> = emptyMap()
+)
+
+data class EnhancedDiscoverUiState(
+    val isLoading: Boolean = false,
+    val searchQuery: String = "",
+    val searchResults: List<TvShow> = emptyList(),
+    val personalizedContent: ViewModelPersonalizedContent = ViewModelPersonalizedContent(),
+    val selectedGenre: Genre? = null,
+    val contentFilter: ContentFilter = ContentFilter.ALL,
+    val sortOption: SortOption = SortOption.POPULARITY_DESC,
+    val advancedFilter: AdvancedFilter? = null,
+    val genres: List<Genre> = emptyList(),
+    val error: String? = null,
+    val isSearching: Boolean = false
+)
+
+class EnhancedDiscoverViewModel(
+    private val getPersonalizedRecommendationsUseCase: GetPersonalizedRecommendationsUseCase,
+    private val getShowsByGenreUseCase: GetShowsByGenreUseCase,
+    private val getWatchlistSuggestionsUseCase: GetWatchlistSuggestionsUseCase,
+    private val searchShowsUseCase: SearchShowsUseCase,
+    private val addShowToLibraryUseCase: AddShowToLibraryUseCase,
+    private val getCurrentUserUseCase: GetCurrentUserUseCase
+) : ViewModel() {
+
+    private val _uiState = MutableStateFlow(EnhancedDiscoverUiState())
+    val uiState: StateFlow<EnhancedDiscoverUiState> = _uiState.asStateFlow()
+
+    private val _selectedShows = MutableStateFlow<Set<Long>>(emptySet())
+    val selectedShows: StateFlow<Set<Long>> = _selectedShows.asStateFlow()
+
+    init {
+        loadPersonalizedContent()
+        loadGenres()
+    }
+
+    private fun loadGenres() {
+        // For now, create some sample genres
+        val sampleGenres = listOf(
+            Genre(id = 10759, name = "Action & Adventure"),
+            Genre(id = 16, name = "Animation"),
+            Genre(id = 35, name = "Comedy"),
+            Genre(id = 80, name = "Crime"),
+            Genre(id = 99, name = "Documentary"),
+            Genre(id = 18, name = "Drama"),
+            Genre(id = 10751, name = "Family"),
+            Genre(id = 10762, name = "Kids"),
+            Genre(id = 9648, name = "Mystery"),
+            Genre(id = 10763, name = "News"),
+            Genre(id = 10764, name = "Reality"),
+            Genre(id = 10765, name = "Sci-Fi & Fantasy"),
+            Genre(id = 10766, name = "Soap"),
+            Genre(id = 10767, name = "Talk"),
+            Genre(id = 10768, name = "War & Politics"),
+            Genre(id = 37, name = "Western")
+        )
+        _uiState.value = _uiState.value.copy(genres = sampleGenres)
+    }
+
+    fun onSearchQueryChange(query: String) {
+        _uiState.value = _uiState.value.copy(searchQuery = query)
+        if (query.isNotBlank()) {
+            searchShows(query)
+        } else {
+            _uiState.value = _uiState.value.copy(
+                searchResults = emptyList(),
+                isSearching = false
+            )
+        }
+    }
+
+    private fun searchShows(query: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isSearching = true)
+            try {
+                val result = searchShowsUseCase(query)
+                result.fold(
+                    onSuccess = { shows ->
+                        _uiState.value = _uiState.value.copy(
+                            searchResults = shows,
+                            isSearching = false
+                        )
+                    },
+                    onFailure = { error ->
+                        _uiState.value = _uiState.value.copy(
+                            error = error.message,
+                            isSearching = false
+                        )
+                    }
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    error = e.message,
+                    isSearching = false
+                )
+            }
+        }
+    }
+
+    private fun loadPersonalizedContent() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true)
+            try {
+                // Get current user first
+                getCurrentUserUseCase().collect { user ->
+                    if (user != null) {
+                        val recommendationsResult = getPersonalizedRecommendationsUseCase(user.id)
+                        val suggestionsResult = getWatchlistSuggestionsUseCase(user.id)
+                        
+                        recommendationsResult.fold(
+                            onSuccess = { recommendations ->
+                                suggestionsResult.fold(
+                                    onSuccess = { suggestions ->
+                                        val personalizedContent = ViewModelPersonalizedContent(
+                                            forYou = recommendations.forYou,
+                                            trending = recommendations.trending,
+                                            watchlistSuggestions = suggestions
+                                        )
+                                        
+                                        _uiState.value = _uiState.value.copy(
+                                            personalizedContent = personalizedContent,
+                                            isLoading = false
+                                        )
+                                    },
+                                    onFailure = { error ->
+                                        _uiState.value = _uiState.value.copy(
+                                            error = error.message,
+                                            isLoading = false
+                                        )
+                                    }
+                                )
+                            },
+                            onFailure = { error ->
+                                _uiState.value = _uiState.value.copy(
+                                    error = error.message,
+                                    isLoading = false
+                                )
+                            }
+                        )
+                } else {
+                    _uiState.value = _uiState.value.copy(isLoading = false)
+                }
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    error = e.message,
+                    isLoading = false
+                )
+            }
+        }
+    }
+
+    fun loadShowsByGenre(genre: Genre) {
+        viewModelScope.launch {
+            try {
+                val result = getShowsByGenreUseCase(genre.id)
+                result.fold(
+                    onSuccess = { shows ->
+                        val currentContent = _uiState.value.personalizedContent
+                        val updatedGenreMap = currentContent.byGenre.toMutableMap()
+                        updatedGenreMap[genre] = shows
+                        
+                        _uiState.value = _uiState.value.copy(
+                            personalizedContent = currentContent.copy(
+                                byGenre = updatedGenreMap
+                            ),
+                            selectedGenre = genre
+                        )
+                    },
+                    onFailure = { error ->
+                        _uiState.value = _uiState.value.copy(error = error.message)
+                    }
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(error = e.message)
+            }
+        }
+    }
+
+    private fun loadGenres() {
+        // For now, create some sample genres
+        val sampleGenres = listOf(
+            Genre(id = 10759, name = "Action & Adventure"),
+            Genre(id = 16, name = "Animation"),
+            Genre(id = 35, name = "Comedy"),
+            Genre(id = 80, name = "Crime"),
+            Genre(id = 99, name = "Documentary"),
+            Genre(id = 18, name = "Drama"),
+            Genre(id = 10751, name = "Family"),
+            Genre(id = 10762, name = "Kids"),
+            Genre(id = 9648, name = "Mystery"),
+            Genre(id = 10763, name = "News"),
+            Genre(id = 10764, name = "Reality"),
+            Genre(id = 10765, name = "Sci-Fi & Fantasy"),
+            Genre(id = 10766, name = "Soap"),
+            Genre(id = 10767, name = "Talk"),
+            Genre(id = 10768, name = "War & Politics"),
+            Genre(id = 37, name = "Western")
+        )
+        _uiState.value = _uiState.value.copy(genres = sampleGenres)
+    }
+
+    fun onGenreSelected(genre: Genre?) {
+        _uiState.value = _uiState.value.copy(selectedGenre = genre)
+        genre?.let { loadShowsByGenre(it) }
+    }
+
+    fun onContentFilterChanged(filter: ContentFilter) {
+        _uiState.value = _uiState.value.copy(contentFilter = filter)
+        applyFiltersAndSorting()
+    }
+
+    fun onSortOptionChanged(sortOption: SortOption) {
+        _uiState.value = _uiState.value.copy(sortOption = sortOption)
+        applyFiltersAndSorting()
+    }
+
+    fun onAdvancedFilterChanged(filter: AdvancedFilter?) {
+        _uiState.value = _uiState.value.copy(advancedFilter = filter)
+        applyFiltersAndSorting()
+    }
+
+    private fun applyFiltersAndSorting() {
+        val currentState = _uiState.value
+        val allShows = when {
+            currentState.searchQuery.isNotBlank() -> currentState.searchResults
+            currentState.selectedGenre != null -> {
+                currentState.personalizedContent.byGenre[currentState.selectedGenre] ?: emptyList()
+            }
+            else -> currentState.personalizedContent.forYou
+        }
+
+        var filteredShows = allShows
+
+        // Apply advanced filters
+        currentState.advancedFilter?.let { filter ->
+            // Apply rating filter
+            filter.rating?.let { range ->
+                filteredShows = filteredShows.filter { show ->
+                    show.voteAverage in range
+                }
+            }
+            
+            // Apply year filter  
+            filter.year?.let { range ->
+                filteredShows = filteredShows.filter { show ->
+                    show.firstAirDate?.let { date ->
+                        val year = date.year
+                        year in range
+                    } ?: false
+                }
+            }
+        }
+
+        // Apply sorting
+        val sortedShows = when (currentState.sortOption) {
+            SortOption.POPULARITY_DESC -> filteredShows.sortedByDescending { it.popularity }
+            SortOption.POPULARITY_ASC -> filteredShows.sortedBy { it.popularity }
+            SortOption.TITLE_ASC -> filteredShows.sortedBy { it.name }
+            SortOption.TITLE_DESC -> filteredShows.sortedByDescending { it.name }
+            SortOption.RATING_HIGH -> filteredShows.sortedByDescending { it.voteAverage }
+            SortOption.RATING_LOW -> filteredShows.sortedBy { it.voteAverage }
+            SortOption.DATE_ADDED -> filteredShows.sortedByDescending { it.firstAirDate }
+        }
+
+        // Update the appropriate content section
+        val updatedContent = when {
+            currentState.searchQuery.isNotBlank() -> {
+                _uiState.value = currentState.copy(searchResults = sortedShows)
+                return
+            }
+            currentState.selectedGenre != null -> {
+                val updatedGenreMap = currentState.personalizedContent.byGenre.toMutableMap()
+                updatedGenreMap[currentState.selectedGenre!!] = sortedShows
+                currentState.personalizedContent.copy(byGenre = updatedGenreMap)
+            }
+            else -> currentState.personalizedContent.copy(forYou = sortedShows)
+        }
+
+        _uiState.value = currentState.copy(personalizedContent = updatedContent)
+    }
+
+    fun addToLibrary(show: TvShow) {
+        viewModelScope.launch {
+            try {
+                getCurrentUserUseCase().collect { user ->
+                    if (user != null) {
+                        val userShow = UserShow(
+                            id = "${user.id}_${show.id}",
+                            userId = user.id,
+                            showId = show.id,
+                            showName = show.name,
+                            posterPath = show.posterPath,
+                            status = WatchStatus.PLAN_TO_WATCH,
+                            dateAdded = kotlinx.datetime.Clock.System.todayIn(kotlinx.datetime.TimeZone.currentSystemDefault())
+                        )
+                        addShowToLibraryUseCase(userShow)
+                    }
+                }
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(error = e.message)
+            }
+        }
+    }
+
+    fun toggleShowSelection(showId: Long) {
+        val currentSelection = _selectedShows.value
+        _selectedShows.value = if (currentSelection.contains(showId)) {
+            currentSelection - showId
+        } else {
+            currentSelection + showId
+        }
+    }
+
+    fun clearSelection() {
+        _selectedShows.value = emptySet()
+    }
+
+    fun clearError() {
+        _uiState.value = _uiState.value.copy(error = null)
+    }
+}

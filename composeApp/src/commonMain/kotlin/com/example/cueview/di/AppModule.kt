@@ -13,6 +13,9 @@ import com.example.cueview.domain.repository.UserRepository
 import com.example.cueview.domain.usecase.*
 import com.example.cueview.presentation.viewmodel.AuthViewModel
 import com.example.cueview.presentation.viewmodel.DiscoverViewModel
+import com.example.cueview.presentation.viewmodel.LibraryViewModel
+// import com.example.cueview.presentation.viewmodel.EnhancedDiscoverViewModel
+// import com.example.cueview.presentation.viewmodel.EnhancedLibraryViewModel
 import io.ktor.client.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.plugins.logging.*
@@ -58,6 +61,21 @@ val useCaseModule = module {
     factory { SearchShowsUseCase(get()) }
     factory { GetShowDetailsUseCase(get()) }
     
+    // User use cases
+    factory { AddShowToLibraryUseCase(get()) }
+    factory { RemoveShowFromLibraryUseCase(get()) }
+    
+    // Progress tracking use cases
+    factory { MarkEpisodeWatchedUseCase(get()) }
+    factory { GetShowProgressUseCase(get(), get()) }
+    factory { SetReminderUseCase(get()) }
+    
+    // Discovery use cases
+    factory { GetPersonalizedRecommendationsUseCase(get(), get()) }
+    factory { GetShowsByGenreUseCase(get()) }
+    factory { GetWatchlistSuggestionsUseCase(get(), get()) }
+    factory { GetRecommendationsUseCase(get(), get()) }
+    
     // Auth use cases
     factory { SignInUseCase(get()) }
     factory { SignUpUseCase(get()) }
@@ -67,8 +85,14 @@ val useCaseModule = module {
 }
 
 val viewModelModule = module {
-    factory { DiscoverViewModel(get(), get(), get()) }
+    // Original ViewModels
+    factory { DiscoverViewModel(get(), get(), get(), get(), get()) }
     factory { AuthViewModel(get(), get(), get(), get()) }
+    factory { LibraryViewModel(get(), get()) }
+    
+    // Enhanced ViewModels (temporarily disabled)
+    // factory { EnhancedDiscoverViewModel(...) }
+    // factory { EnhancedLibraryViewModel(...) }
 }
 
 val appModules = listOf(

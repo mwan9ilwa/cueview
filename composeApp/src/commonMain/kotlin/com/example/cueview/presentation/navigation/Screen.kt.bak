@@ -1,0 +1,37 @@
+package com.example.cueview.presentation.navigation
+
+import androidx.navigation.NamedNavArgument
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
+
+sealed class Screen(val route: String) {
+    object Login : Screen("login")
+    object Discover : Screen("discover")
+    object Library : Screen("library")
+    object Profile : Screen("profile")
+    
+    object ShowDetails : Screen("show_details/{showId}") {
+        fun createRoute(showId: Int) = "show_details/$showId"
+        val arguments: List<NamedNavArgument> = listOf(
+            navArgument("showId") { type = NavType.IntType }
+        )
+    }
+    
+    object SeasonDetails : Screen("season_details/{showId}/{seasonNumber}") {
+        fun createRoute(showId: Int, seasonNumber: Int) = "season_details/$showId/$seasonNumber"
+        val arguments: List<NamedNavArgument> = listOf(
+            navArgument("showId") { type = NavType.IntType },
+            navArgument("seasonNumber") { type = NavType.IntType }
+        )
+    }
+    
+    object EpisodeDetails : Screen("episode_details/{showId}/{seasonNumber}/{episodeNumber}") {
+        fun createRoute(showId: Int, seasonNumber: Int, episodeNumber: Int) = 
+            "episode_details/$showId/$seasonNumber/$episodeNumber"
+        val arguments: List<NamedNavArgument> = listOf(
+            navArgument("showId") { type = NavType.IntType },
+            navArgument("seasonNumber") { type = NavType.IntType },
+            navArgument("episodeNumber") { type = NavType.IntType }
+        )
+    }
+}

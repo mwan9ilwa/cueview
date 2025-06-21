@@ -3,6 +3,8 @@ package com.example.cueview.presentation.screens.discover
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -22,6 +24,29 @@ fun DiscoverScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var searchQuery by remember { mutableStateOf("") }
+    val snackbarHostState = remember { SnackbarHostState() }
+    
+    // Show success message when show is added to library
+    LaunchedEffect(uiState.addToLibraryMessage) {
+        uiState.addToLibraryMessage?.let { message ->
+            snackbarHostState.showSnackbar(
+                message = message,
+                duration = SnackbarDuration.Short
+            )
+            viewModel.clearAddToLibraryMessage()
+        }
+    }
+    
+    // Show error message
+    LaunchedEffect(uiState.errorMessage) {
+        uiState.errorMessage?.let { message ->
+            snackbarHostState.showSnackbar(
+                message = message,
+                duration = SnackbarDuration.Long
+            )
+            viewModel.clearError()
+        }
+    }
     
     // Trigger search when query changes
     LaunchedEffect(searchQuery) {
@@ -37,15 +62,19 @@ fun DiscoverScreen(
         viewModel.loadInitialData()
     }
     
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        Text(
-            text = "Discover",
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) }
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(16.dp)
+        ) {
+            Text(
+                text = "Discover",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(bottom = 16.dp)
         )
         
@@ -69,14 +98,6 @@ fun DiscoverScreen(
                 }
             }
             
-            uiState.errorMessage != null -> {
-                Text(
-                    text = "Error: ${uiState.errorMessage}",
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(16.dp)
-                )
-            }
-            
             searchQuery.isBlank() -> {
                 // Show trending/popular shows
                 LazyColumn {
@@ -93,7 +114,9 @@ fun DiscoverScreen(
                         items(uiState.trendingShows) { show ->
                             ShowCard(
                                 show = show,
-                                onClick = { onNavigateToShowDetails(show.id) }
+                                onAddToLibrary = { viewModel.addToLibrary(show) },
+                                onClick = { onNavigateToShowDetails(show.id) },
+                                isAddingToLibrary = uiState.isAddingToLibrary
                             )
                         }
                     }
@@ -112,7 +135,9 @@ fun DiscoverScreen(
                         items(uiState.popularShows) { show ->
                             ShowCard(
                                 show = show,
-                                onClick = { onNavigateToShowDetails(show.id) }
+                                onAddToLibrary = { viewModel.addToLibrary(show) },
+                                onClick = { onNavigateToShowDetails(show.id) },
+                                isAddingToLibrary = uiState.isAddingToLibrary
                             )
                         }
                     }
@@ -135,7 +160,9 @@ fun DiscoverScreen(
                         items(uiState.searchResults) { show ->
                             ShowCard(
                                 show = show,
-                                onClick = { onNavigateToShowDetails(show.id) }
+                                onAddToLibrary = { viewModel.addToLibrary(show) },
+                                onClick = { onNavigateToShowDetails(show.id) },
+                                isAddingToLibrary = uiState.isAddingToLibrary
                             )
                         }
                     } else {
@@ -149,6 +176,7 @@ fun DiscoverScreen(
                 }
             }
         }
+        }
     }
 }
 
@@ -156,7 +184,9 @@ fun DiscoverScreen(
 @Composable
 private fun ShowCard(
     show: com.example.cueview.domain.model.TvShow,
-    onClick: () -> Unit
+    onAddToLibrary: () -> Unit,
+    onClick: () -> Unit,
+    isAddingToLibrary: Boolean = false
 ) {
     Card(
         modifier = Modifier
@@ -204,6 +234,24 @@ private fun ShowCard(
                         text = show.firstAirDate?.year?.toString() ?: "Unknown",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            
+            // Add to Library Button
+            if (isAddingToLibrary) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(24.dp),
+                    strokeWidth = 2.dp
+                )
+            } else {
+                IconButton(
+                    onClick = onAddToLibrary
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Add to Library",
+                        tint = MaterialTheme.colorScheme.primary
                     )
                 }
             }

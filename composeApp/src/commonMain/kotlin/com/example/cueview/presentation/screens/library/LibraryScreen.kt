@@ -10,13 +10,24 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.cueview.domain.model.UserShow
+import com.example.cueview.domain.model.WatchStatus
+import com.example.cueview.presentation.viewmodel.LibraryViewModel
+import org.koin.compose.koinInject
 
 @Composable
 fun LibraryScreen(
-    onNavigateToShowDetails: (Int) -> Unit
+    onNavigateToShowDetails: (Int) -> Unit,
+    viewModel: LibraryViewModel = koinInject()
 ) {
     var selectedTab by remember { mutableStateOf(0) }
     val tabs = listOf("Watching", "Completed", "Plan to Watch", "On Hold", "Dropped")
+    
+    val watchingShows by viewModel.watchingShows.collectAsState()
+    val completedShows by viewModel.completedShows.collectAsState()
+    val planToWatchShows by viewModel.planToWatchShows.collectAsState()
+    val onHoldShows by viewModel.onHoldShows.collectAsState()
+    val droppedShows by viewModel.droppedShows.collectAsState()
     
     Column(
         modifier = Modifier
@@ -46,11 +57,11 @@ fun LibraryScreen(
         Spacer(modifier = Modifier.height(16.dp))
         
         when (selectedTab) {
-            0 -> LibraryContent("Watching", getWatchingShows(), onNavigateToShowDetails)
-            1 -> LibraryContent("Completed", getCompletedShows(), onNavigateToShowDetails)
-            2 -> LibraryContent("Plan to Watch", getPlanToWatchShows(), onNavigateToShowDetails)
-            3 -> LibraryContent("On Hold", getOnHoldShows(), onNavigateToShowDetails)
-            4 -> LibraryContent("Dropped", getDroppedShows(), onNavigateToShowDetails)
+            0 -> LibraryContent("Watching", watchingShows, onNavigateToShowDetails, viewModel)
+            1 -> LibraryContent("Completed", completedShows, onNavigateToShowDetails, viewModel)
+            2 -> LibraryContent("Plan to Watch", planToWatchShows, onNavigateToShowDetails, viewModel)
+            3 -> LibraryContent("On Hold", onHoldShows, onNavigateToShowDetails, viewModel)
+            4 -> LibraryContent("Dropped", droppedShows, onNavigateToShowDetails, viewModel)
         }
     }
 }
@@ -58,8 +69,9 @@ fun LibraryScreen(
 @Composable
 private fun LibraryContent(
     title: String,
-    shows: List<LibraryShowItem>,
-    onNavigateToShowDetails: (Int) -> Unit
+    shows: List<UserShow>,
+    onNavigateToShowDetails: (Int) -> Unit,
+    viewModel: LibraryViewModel
 ) {
     if (shows.isEmpty()) {
         Box(
@@ -76,7 +88,8 @@ private fun LibraryContent(
             items(shows) { show ->
                 LibraryShowCard(
                     show = show,
-                    onClick = { onNavigateToShowDetails(show.id) }
+                    onClick = { onNavigateToShowDetails(show.showId) },
+                    onRemove = { viewModel.removeShowFromLibrary(show) }
                 )
             }
         }
@@ -86,8 +99,9 @@ private fun LibraryContent(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun LibraryShowCard(
-    show: LibraryShowItem,
-    onClick: () -> Unit
+    show: UserShow,
+    onClick: () -> Unit,
+    onRemove: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -113,22 +127,27 @@ private fun LibraryShowCard(
                 modifier = Modifier.weight(1f)
             ) {
                 Text(
-                    text = show.name,
+                    text = show.showName,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium
                 )
                 
-                if (show.progress != null) {
-                    Text(
-                        text = show.progress,
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                val progressText = when {
+                    show.status == WatchStatus.COMPLETED -> "Completed"
+                    show.currentSeason > 1 || show.currentEpisode > 1 -> 
+                        "S${show.currentSeason} E${show.currentEpisode}"
+                    else -> "Not started"
                 }
+                
+                Text(
+                    text = progressText,
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.primary
+                )
                 
                 if (show.personalRating != null) {
                     Text(
-                        text = "Your rating: ★ ${(show.personalRating * 10).toInt() / 10.0}",
+                        text = "Your rating: ★ ${show.personalRating}",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -142,33 +161,15 @@ private fun LibraryShowCard(
                     )
                 }
             }
+            
+            // Remove button
+            TextButton(
+                onClick = onRemove
+            ) {
+                Text("Remove")
+            }
         }
     }
 }
 
-// TODO: Replace with actual data models
-data class LibraryShowItem(
-    val id: Int,
-    val name: String,
-    val progress: String?,
-    val personalRating: Double?,
-    val lastWatched: String?,
-    val posterPath: String?
-)
 
-// TODO: Replace with actual data from repository
-private fun getWatchingShows(): List<LibraryShowItem> = listOf(
-    LibraryShowItem(1, "Breaking Bad", "S3 E5", 9.0, "2 days ago", null),
-    LibraryShowItem(2, "Stranger Things", "S4 E2", 8.5, "1 week ago", null)
-)
-
-private fun getCompletedShows(): List<LibraryShowItem> = listOf(
-    LibraryShowItem(3, "The Office", "Completed", 9.5, "1 month ago", null)
-)
-
-private fun getPlanToWatchShows(): List<LibraryShowItem> = listOf(
-    LibraryShowItem(4, "Game of Thrones", null, null, null, null)
-)
-
-private fun getOnHoldShows(): List<LibraryShowItem> = emptyList()
-private fun getDroppedShows(): List<LibraryShowItem> = emptyList()

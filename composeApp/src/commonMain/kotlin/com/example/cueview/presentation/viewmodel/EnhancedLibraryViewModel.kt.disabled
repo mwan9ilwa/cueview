@@ -1,0 +1,219 @@
+package com.example.cueview.presentation.viewmodel
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.cueview.domain.model.*
+import com.example.cueview.domain.repository.AuthRepository
+import com.example.cueview.domain.repository.UserRepository
+import com.example.cueview.domain.usecase.*
+import com.example.cueview.presentation.ui.common.SortOption
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
+
+data class LibraryUiState(
+    val isLoading: Boolean = false,
+    val selectedTab: Int = 0,
+    val sortOption: SortOption = SortOption.DATE_ADDED,
+    val filterStatus: WatchStatus? = null,
+    val searchQuery: String = "",
+    val errorMessage: String? = null,
+    val successMessage: String? = null
+)
+
+/**
+ * Enhanced ViewModel for the Library screen with progress tracking
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
+class EnhancedLibraryViewModel(
+    private val userRepository: UserRepository,
+    private val authRepository: AuthRepository,
+    private val getShowProgressUseCase: GetShowProgressUseCase,
+    private val markEpisodeWatchedUseCase: MarkEpisodeWatchedUseCase
+) : ViewModel() {
+
+    private val _uiState = MutableStateFlow(LibraryUiState())
+    val uiState: StateFlow<LibraryUiState> = _uiState.asStateFlow()
+
+    private val _currentUser = authRepository.getCurrentUser()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    val userShows = _currentUser.flatMapLatest { user ->
+        if (user?.id != null) {
+            userRepository.getUserShows(user.id)
+        } else {
+            flowOf(emptyList())
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Enhanced filtering and sorting
+    val filteredAndSortedShows = combine(
+        userShows,
+        _uiState
+    ) { shows, state ->
+        var filteredShows = shows
+        
+        // Apply search filter
+        if (state.searchQuery.isNotBlank()) {
+            filteredShows = filteredShows.filter { 
+                it.showName.contains(state.searchQuery, ignoreCase = true) 
+            }
+        }
+        
+        // Apply status filter
+        state.filterStatus?.let { status ->
+            filteredShows = filteredShows.filter { it.status == status }
+        }
+        
+        // Apply sorting
+        when (state.sortOption) {
+            SortOption.TITLE_ASC -> filteredShows.sortedBy { it.showName }
+            SortOption.DATE_ADDED -> filteredShows.sortedByDescending { it.dateAdded }
+            SortOption.RATING_HIGH -> filteredShows.sortedByDescending { it.personalRating ?: 0.0 }
+            SortOption.RATING_LOW -> filteredShows.sortedBy { it.personalRating ?: 0.0 }
+            else -> filteredShows
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Filter shows by status for tabs
+    val watchingShows = filteredAndSortedShows.map { shows ->
+        shows.filter { it.status == WatchStatus.WATCHING }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val completedShows = filteredAndSortedShows.map { shows ->
+        shows.filter { it.status == WatchStatus.COMPLETED }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val planToWatchShows = filteredAndSortedShows.map { shows ->
+        shows.filter { it.status == WatchStatus.PLAN_TO_WATCH }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val onHoldShows = filteredAndSortedShows.map { shows ->
+        shows.filter { it.status == WatchStatus.ON_HOLD }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val droppedShows = filteredAndSortedShows.map { shows ->
+        shows.filter { it.status == WatchStatus.DROPPED }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun updateSearchQuery(query: String) {
+        _uiState.value = _uiState.value.copy(searchQuery = query)
+    }
+
+    fun updateSortOption(sortOption: SortOption) {
+        _uiState.value = _uiState.value.copy(sortOption = sortOption)
+    }
+
+    fun updateFilterStatus(status: WatchStatus?) {
+        _uiState.value = _uiState.value.copy(filterStatus = status)
+    }
+
+    fun updateSelectedTab(tab: Int) {
+        _uiState.value = _uiState.value.copy(selectedTab = tab)
+    }
+
+    fun removeShowFromLibrary(show: UserShow) {
+        viewModelScope.launch {
+            _currentUser.value?.let { user ->
+                userRepository.removeShowFromLibrary(user.id, show.showId).fold(
+                    onSuccess = {
+                        _uiState.value = _uiState.value.copy(
+                            successMessage = "'${show.showName}' removed from library"
+                        )
+                    },
+                    onFailure = { error ->
+                        _uiState.value = _uiState.value.copy(
+                            errorMessage = "Failed to remove show: ${error.message}"
+                        )
+                    }
+                )
+            }
+        }
+    }
+
+    fun updateShowStatus(show: UserShow, newStatus: WatchStatus) {
+        viewModelScope.launch {
+            _currentUser.value?.let { user ->
+                userRepository.updateShowStatus(user.id, show.showId, newStatus).fold(
+                    onSuccess = {
+                        _uiState.value = _uiState.value.copy(
+                            successMessage = "'${show.showName}' moved to ${newStatus.name.lowercase().replace('_', ' ')}"
+                        )
+                    },
+                    onFailure = { error ->
+                        _uiState.value = _uiState.value.copy(
+                            errorMessage = "Failed to update status: ${error.message}"
+                        )
+                    }
+                )
+            }
+        }
+    }
+
+    fun rateShow(show: UserShow, rating: Double) {
+        viewModelScope.launch {
+            _currentUser.value?.let { user ->
+                userRepository.rateShow(user.id, show.showId, rating).fold(
+                    onSuccess = {
+                        _uiState.value = _uiState.value.copy(
+                            successMessage = "Rating saved for '${show.showName}'"
+                        )
+                    },
+                    onFailure = { error ->
+                        _uiState.value = _uiState.value.copy(
+                            errorMessage = "Failed to save rating: ${error.message}"
+                        )
+                    }
+                )
+            }
+        }
+    }
+
+    fun markEpisodeWatched(
+        show: UserShow, 
+        seasonNumber: Int, 
+        episodeNumber: Int,
+        rating: Double? = null,
+        notes: String? = null
+    ) {
+        viewModelScope.launch {
+            _currentUser.value?.let { user ->
+                markEpisodeWatchedUseCase(
+                    userId = user.id,
+                    showId = show.showId,
+                    seasonNumber = seasonNumber,
+                    episodeNumber = episodeNumber,
+                    rating = rating,
+                    notes = notes
+                ).fold(
+                    onSuccess = {
+                        _uiState.value = _uiState.value.copy(
+                            successMessage = "Episode marked as watched!"
+                        )
+                    },
+                    onFailure = { error ->
+                        _uiState.value = _uiState.value.copy(
+                            errorMessage = "Failed to mark episode as watched: ${error.message}"
+                        )
+                    }
+                )
+            }
+        }
+    }
+
+    fun getShowProgress(show: UserShow): Flow<ShowProgress?> = flow {
+        _currentUser.value?.let { user ->
+            getShowProgressUseCase(user.id, show.showId).fold(
+                onSuccess = { progress -> emit(progress) },
+                onFailure = { emit(null) }
+            )
+        } ?: emit(null)
+    }
+
+    fun clearMessages() {
+        _uiState.value = _uiState.value.copy(
+            errorMessage = null,
+            successMessage = null
+        )
+    }
+}

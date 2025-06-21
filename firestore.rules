@@ -1,0 +1,27 @@
+// Firestore Security Rules for CueView
+// Copy these rules to Firebase Console > Firestore Database > Rules
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Users can only read/write their own user profile
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Users can only read/write their own shows
+    match /user_shows/{showId} {
+      allow read, write: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && 
+        request.auth.uid == request.resource.data.userId;
+    }
+    
+    // Allow users to query their own shows
+    match /user_shows/{showId} {
+      allow list: if request.auth != null && 
+        request.auth.uid == request.query.where[0][2]; // userId in where clause
+    }
+  }
+}

@@ -108,3 +108,38 @@ data class TmdbCreator(
     @SerialName("profile_path")
     val profilePath: String?
 )
+
+@Serializable
+data class TmdbImages(
+    val backdrops: List<TmdbImageData>,
+    val posters: List<TmdbImageData>
+)
+
+@Serializable
+data class TmdbImageData(
+    @SerialName("file_path")
+    val filePath: String,
+    val width: Int,
+    val height: Int,
+    @SerialName("aspect_ratio")
+    val aspectRatio: Double,
+    @SerialName("vote_average")
+    val voteAverage: Double,
+    @SerialName("vote_count")
+    val voteCount: Int
+)
+
+@Serializable
+data class TmdbVideosResponse(
+    val results: List<TmdbVideo>
+)
+
+@Serializable
+data class TmdbVideo(
+    val id: String,
+    val key: String,
+    val name: String,
+    val site: String,
+    val type: String,
+    val official: Boolean
+)

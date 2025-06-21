@@ -1,0 +1,601 @@
+package com.example.cueview.presentation.screens.library
+
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.cueview.domain.model.*
+import com.example.cueview.domain.usecase.ShowProgress
+import com.example.cueview.presentation.viewmodel.EnhancedLibraryViewModel
+import com.example.cueview.presentation.ui.common.SortOption
+import org.koin.compose.koinInject
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EnhancedLibraryScreen(
+    onNavigateToShowDetails: (Int) -> Unit,
+    viewModel: EnhancedLibraryViewModel = koinInject()
+) {
+    val uiState by viewModel.uiState.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    var showSearch by remember { mutableStateOf(false) }
+    var showSortOptions by remember { mutableStateOf(false) }
+    
+    // Handle messages
+    LaunchedEffect(uiState.successMessage) {
+        uiState.successMessage?.let { message ->
+            snackbarHostState.showSnackbar(
+                message = message,
+                duration = SnackbarDuration.Short
+            )
+            viewModel.clearMessages()
+        }
+    }
+    
+    LaunchedEffect(uiState.errorMessage) {
+        uiState.errorMessage?.let { message ->
+            snackbarHostState.showSnackbar(
+                message = message,
+                duration = SnackbarDuration.Long
+            )
+            viewModel.clearMessages()
+        }
+    }
+    
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        topBar = {
+            TopAppBar(
+                title = { Text("My Library") },
+                actions = {
+                    IconButton(onClick = { showSearch = !showSearch }) {
+                        Icon(
+                            imageVector = if (showSearch) Icons.Default.SearchOff else Icons.Default.Search,
+                            contentDescription = "Toggle Search"
+                        )
+                    }
+                    IconButton(onClick = { showSortOptions = !showSortOptions }) {
+                        Icon(
+                            imageVector = Icons.Default.Sort,
+                            contentDescription = "Sort Options"
+                        )
+                    }
+                }
+            )
+        }
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            // Search and Sort Controls
+            AnimatedVisibility(
+                visible = showSearch,
+                enter = expandVertically(),
+                exit = shrinkVertically()
+            ) {
+                SearchAndSortControls(
+                    searchQuery = uiState.searchQuery,
+                    onSearchChange = { viewModel.updateSearchQuery(it) },
+                    sortOption = uiState.sortOption,
+                    onSortChange = { viewModel.updateSortOption(it) },
+                    showSortOptions = showSortOptions,
+                    onToggleSortOptions = { showSortOptions = !showSortOptions }
+                )
+            }
+            
+            // Tabs
+            val tabs = listOf("Watching", "Completed", "Plan to Watch", "On Hold", "Dropped")
+            val tabStates = listOf(
+                viewModel.watchingShows.collectAsState(),
+                viewModel.completedShows.collectAsState(),
+                viewModel.planToWatchShows.collectAsState(),
+                viewModel.onHoldShows.collectAsState(),
+                viewModel.droppedShows.collectAsState()
+            )
+            
+            ScrollableTabRow(
+                selectedTabIndex = uiState.selectedTab,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                tabs.forEachIndexed { index, title ->
+                    val count = tabStates[index].value.size
+                    Tab(
+                        selected = uiState.selectedTab == index,
+                        onClick = { viewModel.updateSelectedTab(index) },
+                        text = { 
+                            Text("$title${if (count > 0) " ($count)" else ""}") 
+                        }
+                    )
+                }
+            }
+            
+            // Content
+            when (uiState.selectedTab) {
+                0 -> LibraryTabContent(tabStates[0].value, onNavigateToShowDetails, viewModel, "watching")
+                1 -> LibraryTabContent(tabStates[1].value, onNavigateToShowDetails, viewModel, "completed")
+                2 -> LibraryTabContent(tabStates[2].value, onNavigateToShowDetails, viewModel, "plan to watch")
+                3 -> LibraryTabContent(tabStates[3].value, onNavigateToShowDetails, viewModel, "on hold")
+                4 -> LibraryTabContent(tabStates[4].value, onNavigateToShowDetails, viewModel, "dropped")
+            }
+        }
+    }
+}
+
+@Composable
+private fun SearchAndSortControls(
+    searchQuery: String,
+    onSearchChange: (String) -> Unit,
+    sortOption: SortOption,
+    onSortChange: (SortOption) -> Unit,
+    showSortOptions: Boolean,
+    onToggleSortOptions: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            // Search Field
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = onSearchChange,
+                label = { Text("Search your library...") },
+                leadingIcon = {
+                    Icon(Icons.Default.Search, contentDescription = "Search")
+                },
+                trailingIcon = if (searchQuery.isNotEmpty()) {
+                    {
+                        IconButton(onClick = { onSearchChange("") }) {
+                            Icon(Icons.Default.Clear, contentDescription = "Clear")
+                        }
+                    }
+                } else null,
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp)
+            )
+            
+            // Sort Options
+            AnimatedVisibility(
+                visible = showSortOptions,
+                enter = expandVertically(),
+                exit = shrinkVertically()
+            ) {
+                Column {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "Sort by:",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.padding(top = 8.dp)
+                    ) {
+                        SortOption.values().forEach { option ->
+                            FilterChip(
+                                selected = sortOption == option,
+                                onClick = { onSortChange(option) },
+                                label = { 
+                                    Text(
+                                        text = option.name.replace('_', ' '),
+                                        fontSize = 12.sp
+                                    ) 
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LibraryTabContent(
+    shows: List<UserShow>,
+    onNavigateToShowDetails: (Int) -> Unit,
+    viewModel: EnhancedLibraryViewModel,
+    statusName: String
+) {
+    if (shows.isEmpty()) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "No shows $statusName",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "Add some shows to get started!",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    } else {
+        LazyColumn(
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            items(shows, key = { it.id }) { show ->
+                EnhancedLibraryShowCard(
+                    show = show,
+                    onShowClick = { onNavigateToShowDetails(show.showId) },
+                    onRemove = { viewModel.removeShowFromLibrary(show) },
+                    onStatusChange = { newStatus -> viewModel.updateShowStatus(show, newStatus) },
+                    onRatingChange = { rating -> viewModel.rateShow(show, rating) },
+                    onEpisodeWatched = { season, episode -> 
+                        viewModel.markEpisodeWatched(show, season, episode) 
+                    },
+                    viewModel = viewModel
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EnhancedLibraryShowCard(
+    show: UserShow,
+    onShowClick: () -> Unit,
+    onRemove: () -> Unit,
+    onStatusChange: (WatchStatus) -> Unit,
+    onRatingChange: (Double) -> Unit,
+    onEpisodeWatched: (Int, Int) -> Unit,
+    viewModel: EnhancedLibraryViewModel
+) {
+    var isExpanded by remember { mutableStateOf(false) }
+    var showStatusMenu by remember { mutableStateOf(false) }
+    var showRatingDialog by remember { mutableStateOf(false) }
+    
+    val progress by viewModel.getShowProgress(show).collectAsState(initial = null)
+    
+    Card(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column {
+            // Main Card Content
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Poster Placeholder
+                Box(
+                    modifier = Modifier
+                        .size(80.dp, 120.dp)
+                        .clip(RoundedCornerShape(8.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("📺", fontSize = 32.sp)
+                }
+                
+                Spacer(modifier = Modifier.width(16.dp))
+                
+                // Show Details
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = show.showName,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    
+                    // Progress Info
+                    progress?.let { prog ->
+                        Text(
+                            text = "${prog.watchedEpisodes}/${prog.totalEpisodes} episodes",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        
+                        LinearProgressIndicator(
+                            progress = prog.progressPercentage / 100f,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            trackColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    } ?: run {
+                        val progressText = when {
+                            show.status == WatchStatus.COMPLETED -> "Completed"
+                            show.currentSeason > 1 || show.currentEpisode > 1 -> 
+                                "S${show.currentSeason} E${show.currentEpisode}"
+                            else -> "Not started"
+                        }
+                        
+                        Text(
+                            text = progressText,
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    
+                    // Rating
+                    if (show.personalRating != null) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Star,
+                                contentDescription = "Rating",
+                                tint = Color(0xFFFFD700),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = " ${show.personalRating}",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    
+                    // Last Watched
+                    show.lastWatched?.let { date ->
+                        Text(
+                            text = "Last watched: $date",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                
+                // Action Buttons
+                Column {
+                    IconButton(onClick = { isExpanded = !isExpanded }) {
+                        Icon(
+                            imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                            contentDescription = if (isExpanded) "Collapse" else "Expand"
+                        )
+                    }
+                }
+            }
+            
+            // Expanded Content
+            AnimatedVisibility(
+                visible = isExpanded,
+                enter = expandVertically(),
+                exit = shrinkVertically()
+            ) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        // Action Buttons Row
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            // Status Change
+                            OutlinedButton(
+                                onClick = { showStatusMenu = true }
+                            ) {
+                                Text("Change Status")
+                            }
+                            
+                            // Rate Show
+                            OutlinedButton(
+                                onClick = { showRatingDialog = true }
+                            ) {
+                                Text("Rate")
+                            }
+                            
+                            // Remove
+                            OutlinedButton(
+                                onClick = onRemove,
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.error
+                                )
+                            ) {
+                                Text("Remove")
+                            }
+                        }
+                        
+                        // Season Progress (if available)
+                        progress?.seasonProgress?.let { seasons ->
+                            if (seasons.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    text = "Season Progress",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                
+                                seasons.forEach { season ->
+                                    SeasonProgressItem(
+                                        season = season,
+                                        onEpisodeToggle = { episodeNumber ->
+                                            onEpisodeWatched(season.seasonNumber, episodeNumber)
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // Status Change Menu
+    if (showStatusMenu) {
+        AlertDialog(
+            onDismissRequest = { showStatusMenu = false },
+            title = { Text("Change Status") },
+            text = {
+                Column {
+                    WatchStatus.values().forEach { status ->
+                        TextButton(
+                            onClick = {
+                                onStatusChange(status)
+                                showStatusMenu = false
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = status.name.replace('_', ' '),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showStatusMenu = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+    
+    // Rating Dialog
+    if (showRatingDialog) {
+        RatingDialog(
+            currentRating = show.personalRating,
+            onRatingConfirmed = { rating ->
+                onRatingChange(rating)
+                showRatingDialog = false
+            },
+            onDismiss = { showRatingDialog = false }
+        )
+    }
+}
+
+@Composable
+private fun SeasonProgressItem(
+    season: SeasonProgress,
+    onEpisodeToggle: (Int) -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Season ${season.seasonNumber}",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                Text(
+                    text = "${season.watchedCount}/${season.totalEpisodes}",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            
+            LinearProgressIndicator(
+                progress = season.progress,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp)
+            )
+            
+            if (season.progress < 1f) {
+                TextButton(
+                    onClick = {
+                        // Mark next episode as watched
+                        val nextEpisode = season.watchedEpisodes.maxOrNull()?.plus(1) ?: 1
+                        if (nextEpisode <= season.totalEpisodes) {
+                            onEpisodeToggle(nextEpisode)
+                        }
+                    }
+                ) {
+                    Text("Mark Next Episode Watched")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RatingDialog(
+    currentRating: Double?,
+    onRatingConfirmed: (Double) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var selectedRating by remember { mutableStateOf(currentRating ?: 5.0) }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Rate this Show") },
+        text = {
+            Column {
+                Text("Select a rating from 1 to 10:")
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Slider(
+                    value = selectedRating.toFloat(),
+                    onValueChange = { selectedRating = it.toDouble() },
+                    valueRange = 1f..10f,
+                    steps = 8
+                )
+                
+                Text(
+                    text = "Rating: ${selectedRating.toInt()}/10",
+                    modifier = Modifier.fillMaxWidth(),
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onRatingConfirmed(selectedRating) }
+            ) {
+                Text("Save Rating")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
