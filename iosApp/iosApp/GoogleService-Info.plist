@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CLIENT_ID</key>
+	<string>244545040424-u1hqfffnerbpvek8753vpv6n4ap3n304.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.244545040424-u1hqfffnerbpvek8753vpv6n4ap3n304</string>
+	<key>API_KEY</key>
+	<string>AIzaSyD9sQb-1nWbuwxtHN31TydlqSDzFe_H14k</string>
+	<key>GCM_SENDER_ID</key>
+	<string>244545040424</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.example.cueview</string>
+	<key>PROJECT_ID</key>
+	<string>cue-view</string>
+	<key>STORAGE_BUCKET</key>
+	<string>cue-view.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:244545040424:ios:3846f7bc183951e9f9851d</string>
+</dict>
+</plist>
