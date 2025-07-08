@@ -1,0 +1,10 @@
+# Android SDK location (auto-generated)
+sdk.dir=/Users/YOUR_USERNAME/Library/Android/sdk
+
+# TMDb API Configuration
+# Get your API key from: https://www.themoviedb.org/settings/api
+TMDB_API_KEY=29231141753f554541606a489eea855a
+
+# Firebase Configuration
+# Note: Firebase config files (google-services.json, GoogleService-Info.plist) 
+# should be configured separately and are excluded from version control

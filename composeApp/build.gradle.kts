@@ -106,6 +106,16 @@ android {
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
         versionName = "1.0"
+        
+        // Read API key from local.properties or environment variable
+        val tmdbApiKey = project.findProperty("TMDB_API_KEY") as String? 
+            ?: System.getenv("TMDB_API_KEY") 
+            ?: "YOUR_TMDB_API_KEY_HERE"
+        buildConfigField("String", "TMDB_API_KEY", "\"$tmdbApiKey\"")
+    }
+    
+    buildFeatures {
+        buildConfig = true
     }
     packaging {
         resources {
