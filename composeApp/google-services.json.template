@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "244545040424",
-    "project_id": "cue-view",
-    "storage_bucket": "cue-view.firebasestorage.app"
+    "project_number": "YOUR_PROJECT_NUMBER",
+    "project_id": "your-project-id",
+    "storage_bucket": "your-project-id.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:244545040424:android:2144a9cf4a764d71f9851d",
+        "mobilesdk_app_id": "YOUR_MOBILE_SDK_APP_ID",
         "android_client_info": {
           "package_name": "com.example.cueview"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyDPQ5_Y0Y-JojgFut3kfj0wSQVBYpO4i6A"
+          "current_key": "YOUR_ANDROID_API_KEY"
         }
       ],
       "services": {

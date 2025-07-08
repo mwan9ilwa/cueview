@@ -207,7 +207,7 @@ private fun ShowCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "★ ${String.format("%.1f", show.voteAverage)}",
+                        text = "★ ${(show.voteAverage * 10).toInt() / 10.0}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary
                     )
